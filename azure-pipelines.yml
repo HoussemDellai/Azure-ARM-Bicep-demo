@@ -1,0 +1,46 @@
+trigger:
+- main
+
+pool:
+  vmImage: windows-latest
+
+steps:
+
+- task: RunARMTTKTests@1
+  inputs:
+    templatelocation: '$(System.DefaultWorkingDirectory)\*'
+    resultLocation: '$(System.DefaultWorkingDirectory)\results'
+    allTemplatesMain: true
+    cliOutputResults: true
+    ignoreExitCode: true
+
+- task: PublishTestResults@2
+  inputs:
+    testResultsFormat: 'NUnit'
+    testResultsFiles: '$(System.DefaultWorkingDirectory)\results\*-armttk.xml'
+  condition: always()
+
+- task: AzureCLI@2
+  inputs:
+    azureSubscription: 'Microsoft-Azure-5(0cb12691-4f8e-4a66-abab-4481e2f0517e)'
+    scriptType: 'bash'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      az deployment group what-if \
+               --resource-group rg-arm-devops \
+               --name rollout01 \
+               --template-file azuredeploy.json \
+               --parameters azuredeploy.parameters.json
+
+- task: AzureResourceManagerTemplateDeployment@3
+  inputs:
+    deploymentScope: 'Resource Group'
+    azureResourceManagerConnection: 'Microsoft-Azure-5(0cb12691-4f8e-4a66-abab-4481e2f0517e)'
+    subscriptionId: '0cb12691-4f8e-4a66-abab-4481e2f0517e'
+    action: 'Create Or Update Resource Group'
+    resourceGroupName: 'rg-arm-devops'
+    location: 'West Europe'
+    templateLocation: 'Linked artifact'
+    csmFile: 'azuredeploy.json'
+    csmParametersFile: 'azuredeploy.parameters.json'
+    deploymentMode: 'Incremental'
